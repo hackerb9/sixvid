@@ -1,6 +1,6 @@
 # sixvid
 
-<img src="README.md.d/sixvid.gif" align="right">
+<img src="README.md.d/sixvid.gif" align="right" width="33%">
 
 Simple script for animated GIF viewing using sixels
 

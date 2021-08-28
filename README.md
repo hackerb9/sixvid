@@ -25,13 +25,13 @@ $ sixvid nyantocat.gif
 | Space | Quit |
 | p | Pause |
 | [, ] | Slower, faster FPS |
-[ Backspace | Reset FPS |
+| Backspace | Reset FPS |
 
 Other keys
 | Key | Action |
 |:-:|:-:|
 | b | Benchmarking (draw as fast as possible) |
-| l, ^L | Redraw screen <br/>(for scrolling glitches)|
+| ^L | Redraw screen <br/>(in case of scrolling glitches)|
 | M | use mimeopen to launch external viewer |
 | q, Esc | Quit, but with different return code<br/>(for wrapper scripts) |
 
@@ -73,7 +73,7 @@ Other keys
 
 A "limitation" is a bug we have declared to be "by design" because we
 can imagine no better way the world could be. All bugs we reject as
-"by design" are in truth limitations, but of us, not our software.
+"by design" are in truth limitations, not of our software, but us.
 
 * Does not attempt to play audio. This is unlikely to happen until
   machines are so fast it's easy for a shell script to write 44,100

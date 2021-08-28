@@ -1,0 +1,437 @@
+#!/bin/bash
+# Show videos/gifs using sixel.
+# Space to quit, p to pause. '[', ']', to change goal fps. 
+
+# Niceties
+# * Decodes video and converts to sixel in background.
+# * Dynamically adjusts delay loop to approximate correct FPS.
+# * Attempts to shrinks geometry/color depth when on slow ssh/serial connection.
+
+# Bugs
+
+# * Uses # of bytes being sent to guess at framerate, but xterm
+#   may be slower at rendering a large image than one with more colors,
+#   given the same filesize.
+
+# * Probably should render to 1-bit sixel as quickly as possible and
+#   then replace it with higher depth once all the frames are done.
+
+# hackerb9
+
+
+# DEFAULTS
+# Max bytes per second that can be transfered and displayed as sixel.
+# If this is too low, the image size and bit depth will suffer.
+# If this is too high, the framerate will not be playable.
+# (2**20 is one megabyte per second)
+declare -i bandwidth=$((2**22))
+
+# Optional lower value when using SSH. 
+declare -i sshbandwidth=$((2**18))
+
+# Note: on a serial terminal, bandwidth is automatically set to baud rate.
+
+
+case "$1" in
+    "-e"|"--no-shrink")	eflag=yup # Show exactly, no color/geometry reduction
+			shift	  # (Ignores ssh or serial connection).
+			;;	  
+    "-s"|"--shrink")	sflag=yup # Force shrinking color/geometry
+			shift	  # (Pretends to be over network).
+			;;	  
+    "-S"|"--serial")	Sflag=yup # Force shrinking color/geometry
+			shift	  # (Pretends to be over serial connection).
+			;;	  
+    "-b"|"--benchmark")	bflag=yup # Run as fast as possible, setting
+			shift	  # goalfps to infinity
+			;;	  
+esac
+
+
+if [[ ! -r "$1" ]]; then
+    echo "Cannot read '$1'"
+    exit 1
+fi
+
+
+# GLOBALS
+declare -i goalfps=5
+declare -i n=0 s=0 fps=0 delay=0
+
+declare -i weightestimate=20	# Estimated milliseconds to xfer and
+				# display a single sixel frame.
+				# (Dynamically adjusted to get FPS correct).
+
+shopt -s nocasematch
+goalfps=$(ffprobe "$(realpath $1)" 2>&1 | sed -rn 's/.* ([^,.]*)(\.[0-9]+)? fps.*/\1/p')
+[[ $goalfps != 0 ]] || goalfps=1
+delay=1000/goalfps
+delay=delay-weightestimate
+
+# Save goalfps so we can use [, ], and backspace for slow, faster, and reset.
+originalgoal=$goalfps		
+
+
+
+cleanup() {
+    while kill $(jobs -p) 2>&-; do sleep 0.1; done   # Kill background jobs.
+    echo -n $'\e\\'		# Escape sequence to stop SIXEL.
+    stty echo			# Reset terminal to show characters.
+    tput cnorm			# Show cursor
+    rm -rf $temp		# Delete split frames.
+    if [[ ! $bflag ]]; then
+	echo -n $'\r'; tput el	# Clear line for prompt.
+    else
+	echo			# Leave FPS printed if benchmarking
+    fi
+}
+trap cleanup EXIT
+
+debug() {
+    [[ $DEBUG ]] && echo "$@"
+}
+
+maybeshrink() {
+    # If image in $file is too large to cat quickly, set options to
+    # reduce colors or shrink it.
+
+    # TODO: should take fps into account.
+    # TODO: should not set global variables.
+    [[ ! $eflag ]] || return; 	# Do nothing if -e is set.
+
+    if isserialline || [[ $Sflag ]]; then
+	# On a serial line (or -S flag), reduce bandwidth to baud rate.
+	local -i baud
+	local dummy
+	read dummy baud dummy < <(stty)
+	bandwidth=baud/8
+    fi
+    if [[ "$SSH_TTY" == `tty` || $sflag ]]; then
+	# Over ssh (or -s flag), use $sshbandwidth as $bandwidth.
+	[[ $sshbandwidth ]] && bandwidth=$sshbandwidth
+    fi
+
+    # Maximum number of bytes in a single sixel frame to get the
+    # requested frame rate. 
+    local -i maxsize=$((bandwidth/goalfps))
+
+    # Test various options on the first frame of the video. 
+    tmpfile=/var/tmp/frame$$.pnm
+    convert "$file"[0] -geometry ">1000x>1000" $tmpfile
+
+    local -i size=$(convert "$tmpfile" sixel:- | wc -c)
+    if [[ maxsize -gt 100000 ]]; then
+	for geometry in ">800x>600" ">640x>480" ">320x>240"; do
+	    if [[ size -gt $maxsize ]]; then
+		debug "$size > $maxsize"
+		debug -n "reducing geometry to $geometry: "
+		reducecolors=""
+		shrink="-geometry $geometry"
+		size=$(convert $shrink $reducecolors "$file"[0] sixel:- | wc -c)
+	    else
+		debug "$size <= $maxsize: "
+		break
+	    fi
+	done
+    fi
+    if [[ maxsize -gt 10000 ]]; then
+	for geometry in ">800x>600" ">640x>480" ">320x>240" ">160x>120"; do
+	    if [[ size -gt $maxsize ]]; then
+		debug "$size > $maxsize"
+		debug -n "reducing colors to 16-grays, geometry to $geometry: "
+		reducecolors="-colorspace gray -colors 16"
+		shrink="-geometry $geometry"
+		size=$(convert $shrink $reducecolors "$tmpfile" sixel:- | wc -c)
+	    else
+		debug "$size <= $maxsize: "
+		break
+	    fi
+	done
+    fi
+    if [[ maxsize -gt 0 ]]; then
+	# Thresholding to 1-bit is very small due to sixel's Run Length Encoding
+	for geometry in ">800x>600" ">640x>480" ">320x>240" ">160x>120"; do
+	    depth=1
+	    if [[ size -gt $maxsize ]]; then
+		debug "$size > $maxsize"
+		debug -n "reducing depth to black & white, geometry to $geometry: "
+		reducecolors="-colorspace gray -depth $depth"
+		shrink="-geometry $geometry"
+		size=$(convert $shrink $reducecolors "$tmpfile" sixel:- | wc -c)
+	    else
+		debug "$size <= $maxsize: "
+		break
+	    fi
+	done
+    fi
+    rm $tmpfile
+
+    if [[ $DEBUG ]]; then
+	echo Frame size is $size bytes
+	echo "Max size is $maxsize bytes (@$goalfps FPS)"
+	echo $reducecolors
+	echo $shrink
+    fi
+}
+
+isserialline() {
+    # Return true if we appear to be on a serial line.
+    # Heuristic: check for well known /dev/tty* serial names.
+    # (NB: ignoring NetBSD Sparc64 Z88530; false positive for Linux's /dev/tty0)
+    local tty=$(tty)
+    tty=${tty#/dev/tty}		# Lop off initial "/dev/tty"
+    case $tty in
+	S[0-9]|USB[0-9]|ACM[0-9]) 
+	    return 0		# Linux serial
+	    ;;
+	u[0-9]|U[0-9]|d[0-9]|/dev/cu*)
+	    return 0		# FreeBSD uart/USB/dialin/callout
+	    ;;
+	.usb*)
+	    return 0		# MacOS USB (different than FreeBSD?)
+	    ;;
+	[0-9][0-9]|C?|Z[0-9]|U[0-9]|Y[0-9]|CZ?|CY?|S[0-9]|\
+	    TX?|B?|[A-C][0-9]|ixpcom|epcom|plcom|wmcom|\
+	    M?|[a-j]|h[0-9]|dc[0-9]|scc[0-9]|\
+	    dz[0-9]|dh[0-9]|dmf[0-9]|dhu[0-9]|dmz[0-9]|dl[0-9]) 
+	    return 0		# NetBSD serial, NS16550, Zilog 8530, USB, ...
+				# Vax, Atari, Sparc, Sun, Luna, ...
+	    ;;			# (See man 8 makedev for details.)
+
+	*)			# Anything else is not a serial line. 
+	    return 1		# False
+	   ;;
+    esac
+}
+
+adjustdelay() {
+    # Once a second, adjust the delay per frame by trying to estimate
+    # how much weight in milliseconds it costs to send one sixel frame
+    # to the screen. (Typical weightestimate on an old UNIX PC, 17ms.
+    # But, over a network link, could be much higher).
+
+    n=n+1			  # num frames
+    s=$(( SECONDS - OLDSECONDS )) # num seconds elapsed 
+    if [[ s -gt 0 ]]; then
+	OLDSECONDS=$SECONDS
+	fps=n/s
+	n=0
+
+	if [[ $bflag ]]; then
+	    delay=0		# benchmarking, run at max fps
+	    return
+	fi
+
+	if [[ fps -gt goalfps ]]; then
+	    weightestimate=weightestimate-1
+	elif [[ fps -lt goalfps ]]; then
+	    if [[ delay -eq 0 ]]; then
+		: # do nothing, since we won't get a good estimate of
+		# the sixel overhead if we're already maxed out.
+ 	    else
+		weightestimate=weightestimate+1
+	    fi
+	fi
+
+	if [[ fps -ne goalfps && goalfps -ne 0 ]]; then
+	    delay=1000/goalfps-weightestimate
+	    if [[ delay -lt 0 ]];    then delay=0; fi
+	    if [[ delay -ge 1000 ]]; then delay=999; fi
+	fi
+    fi
+}    
+
+delayinseconds() {
+    # Convert delay from milliseconds to seconds.
+    # Print delay/1000 + iota of 0.0001.
+    # Note, we cannot let delay == 0 because 'read -t 0' doesn't actually read.
+    printf "0.%03d1" $delay
+}
+
+waitforkey() {
+    # This both reads user input and performs our frames-per-second delay
+    
+    if read -n1 -s -t $(delayinseconds); then
+	case $REPLY in
+	    "[") goalfps=goalfps-1
+		 if [[ goalfps -le 1 ]]; then goalfps=1; fi
+		 ;;
+	    "]") goalfps=goalfps+1
+		 ;;
+	    $'\b'|$'\c?') goalfps=$originalgoal	# Backspace to reset goalfps
+			 ;;
+	    l|$'\x0c') clear			# ^L to redraw screen
+		       ;;
+	    p) echo -en '\r'; tput el
+	       read -n1 -p $'Paused...'
+	       echo -en '\r'; tput el
+	       if [[ "$REPLY" == "q" ]]; then QUITFLAG=true; return 2; fi
+	       OLDSECONDS=$SECONDS
+	       n=0
+	       ;;
+	    M) echo -en '\r'; tput el
+	       tput cnorm; stty echo # Reset term to normal in case mimeopen asks for default app.
+	       echo "mimeopen $file..."
+	       mimeopen "$file"
+	       clear
+	       tput civis; stty -echo
+	       OLDSECONDS=$SECONDS
+	       n=0
+	       ;;
+	    " ") QUITFLAG=true;
+		 return 1	# Quit normally
+		 ;;
+	    b) bflag=$([[ $bflag ]] && echo || echo yup)
+	       # Toggle benchmarking (max FPS)
+	       ;;
+	    q|Q|$'\e') QUITFLAG=true;
+		       return 2	# Different return code to let 'vv' quit completely on 'q'
+		       ;;
+	esac
+    fi
+
+    # discard any extra characters (e.g., key bounces)
+    while read -t 0; do read -n1 -s; done
+
+    return 0		# No key hit
+}
+
+converttosixel() {
+    # Given a process ID (pid), a directory (dir), and a basename (base),
+    # watch for files $dir/$base-%d.pnm and convert them to sixel
+    # for as long as process $pid is alive.
+    local pid=$1  temp=$2  base="$3"
+    local onelasttime=""
+    while true; do
+	local -i j=1
+	while [[ -s $temp/$base-$j.pnm ]]; do
+	    t=$temp/$base-$j.pnm
+	    if [ ! -s "$t.sixel" ]; then
+		convert $shrink $reducecolors  \
+			"$t"'[>1000x>1000]'  "$t.sixel" 2>/dev/null
+	    fi
+	    j=j+1
+	done
+	if [[ $onelasttime ]]; then break; fi
+	if ! kill -0 $pid 2>&-; then onelasttime=yup; fi
+    done
+}
+
+
+
+jobrunning() {
+    # Return true if a background job is still running
+    jobs -r | grep -q Running
+}
+
+file=$(realpath "$1")
+base=$(basename "$file")
+base=${base%.*}
+file="$file"
+
+#temp=/var/run/user/`id -u`/sixvid.$$			# /var/run is faster, but may be small.
+temp=/var/tmp/sixvid.$$
+mkdir $temp
+
+# Set $shrink and $reducecolors for convert when ssh'ing.
+maybeshrink
+
+# Run background job converting movie file to split frames
+nice ffmpeg -loglevel warning -i "$file" -f image2 "$temp/$base-%d.pnm" &
+
+# Run background job converting frames to sixel
+converttosixel $! "$temp" "$base" &
+
+tput civis
+[[ ! $DEBUG ]] && clear
+if jobrunning; then
+    echo -en "working...\r"
+fi
+declare -g QUITFLAG=""		# Set by waitforkey()
+while [ -z "$QUITFLAG" ]; do
+    declare -i i=1
+    while [[ -s $temp/$base-$i.pnm.sixel ]]; do
+	t=$temp/$base-$i.pnm.sixel
+	tput home
+	tput el
+	echo -n "$base-$i"
+	jobs %1 >&- 2>&-  &&  echo -n " (decoding in background)"
+	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing in background)"
+	echo
+	if [ -s "$t" ]; then
+	    cat "$t"
+	    tput cup 1000 0
+	    echo -n "$fps FPS (goal $goalfps, delay $delay ms, overhead $weightestimate ms)"
+	fi
+
+	adjustdelay
+	waitforkey; status=$?
+	if [[ $status -eq 1 ]]; then
+	    exit		# User hit space, so Exit cleanly
+	elif [[ $status -ne 0 ]]; then
+	    exit "$status"	# Allow 'q' to return failure for 'vv'
+	fi
+	i=i+1;
+    done
+done
+
+
+
+# NOTE: Need to reduce color depth, size for large images.
+
+# At one megabyte per second, the largest frame we can transfer and
+# maintain 8fps is 1MB/8 == 131,072 bytes.
+
+#					Sixel
+# Geometry	MPixels	Color?	Depth	Bytes	Seconds	Max FPS
+
+# 320x240	0.08	RGB	8	350 KB	0.35	2.9
+# 320x240	0.08	RGB	4	340 KB	0.34	2.9
+# 320x240	0.08	RGB	2	224 KB	0.22	4.5
+# 320x240	0.08	RGB	1	 83 KB	0.08	12
+
+# 320x240	0.08	Gray	8	312 KB	0.31	3.2
+# 320x240	0.08	Gray	4	139 KB	0.14	7.2
+# 320x240	0.08	Gray	2	 44 KB	0.04	22.7
+# 320x240	0.08	Gray	1	 26 KB	0.03	38.5
+
+
+# 500x500	0.25	RGB	8	1.1 MB	1.1	-
+# 500x500	0.25	RGB	4	1.0 MB	1.0	1
+# 500x500	0.25	RGB	2	724 KB	0.7	1
+# 500x500	0.25	RGB	1	629 KB	0.3	3.7
+
+# 500x500	0.25	Gray	8	1.0 MB	1.0	1
+# 500x500	0.25	Gray	4	451 KB	0.5	2
+# 500x500	0.25	Gray	2	147 KB	0.15	6
+# 500x500	0.25	Gray	1	 84 KB	0.08	12
+
+
+# 800x480	0.384	RGB	8	1.7 MB	1.7	-
+# 800x480	0.384	RGB	4	1.7 MB	1.7	-
+# 800x480	0.384	RGB	2	1.2 MB	1.2	-
+# 800x480	0.384	RGB	1	405 KB	0.4	2
+
+# 800x480	0.384	Gray	8	1.7 MB	1.7	-
+# 800x480	0.384	Gray	4	682 KB	0.7	-
+# 800x480	0.384	Gray	2	221 KB	0.2	4
+# 800x480	0.384	Gray	1	129 KB	0.1	9
+
+
+# 1000x1000	1.000	RGB	8	4.5MB	4.5	-
+# 1000x1000	1.000	RGB	4	4.4MB	4.4	-
+# 1000x1000	1.000	RGB	2	2.8MB	2.8	-
+# 1000x1000	1.000	RGB	1	1MB	1.0	1
+
+# 1000x1000	1.000	Gray	8	4.0MB	4.0	-
+# 1000x1000	1.000	Gray	4	1.8MB	1.8	-
+# 1000x1000	1.000	Gray	2	574,233	0.6	-
+# 1000x1000	1.000	Gray	1	335,023	0.4	2
+
+
+# 1920x2880	2	Gray	8	17MB	17	-
+# 1920x2880 	2	Gray	4	3.1	3.1	-	
+# 1920x2880 	2	Gray	2	865,930	0.9	1
+# 1920x2880 	2	Gray	1	252,927	0.25	4
+
+

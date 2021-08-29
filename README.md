@@ -72,10 +72,6 @@ Other keys
 
 ## Limitations
 
-A "limitation" is a bug we have declared to be "by design" because we
-can imagine no better way the world could be. All bugs we reject as
-"by design" are in truth limitations, not of our software, but us.
-
 * Does not attempt to play audio. This is unlikely to happen until
   machines are so fast it's easy for a shell script to write 44,100
   16-bit stereo samples per second to an audio device.

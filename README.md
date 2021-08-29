@@ -50,7 +50,7 @@ Other keys
 
 * Can be used as a rough benchmark of relative sixel performance for
   various terminal emulators on the same machine. (See
-  **Benchmarking** below)
+  [**Benchmarking**](#benchmarking-with-sixvids-fps) below)
 
 * Decodes video and converts to sixel in background processes.
 

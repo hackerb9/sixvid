@@ -44,7 +44,7 @@ Other keys
 | -s | --shrink<br/>--ssh | Force shrinking color/geometry<br/>(pretend to be over ssh) |
 | -S | --serial | Force shrinking color/geometry<br/>(pretend to be over a serial connection) |
 | -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
-|    | --shm | For benchmarking, try to use /dev/shm/ RAM disk for temp files |
+|    | --shm | Try to use /dev/shm/ RAM disk for temp files<br/>(for benchmarking) |
 
 
 ## Niceties

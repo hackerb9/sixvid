@@ -97,6 +97,8 @@ while true; do
     esac
 done
 
+[[ $1 ]] || usage
+
 if [[ ! -r "$1" ]]; then
     echo "Cannot read '$1'"
     exit 1
@@ -128,7 +130,10 @@ cleanup() {
     stty echo			# Reset terminal to show characters.
     stty icanon			# Allow backspace to work again.
     tput cnorm			# Show cursor.
-    rm -rf $temp		# Delete split frames.
+    if [[ -d $temp ]]; then
+	rm $temp/*pnm* 2>&-	# Delete split frames, if any.
+	rmdir $temp
+    fi
     if [[ ! $bflag ]]; then
 	echo -n $'\r'; tput el	# Clear line for prompt.
     else
@@ -167,7 +172,10 @@ maybeshrink() {
 
     # Test various options on the first frame of the video. 
     tmpfile=/var/tmp/frame$$.pnm
-    convert "$file"[0] -geometry ">1000x>1000" $tmpfile
+    if ! convert "$file"[0] -geometry ">1000x>1000" $tmpfile ; then
+	echo "Unable to convert '$file' to '$tmpfile'" >&2
+	exit 1
+    fi
 
     local -i size=$(convert "$tmpfile" sixel:- | wc -c)
     if [[ maxsize -gt 100000 ]]; then
@@ -385,9 +393,15 @@ base=$(basename "$file")
 base=${base%.*}
 file="$file"
 
-#temp=/var/run/user/`id -u`/sixvid.$$			# /var/run is faster, but may be small.
-temp=/var/tmp/sixvid.$$
-mkdir $temp
+# /dev/shm/ is a fast RAM disk, but may be small.
+# temp=/dev/shm/$USER/sixvid.$$			
+# mkdir $temp
+temp=$(mktemp -t -d sixvid.XXXXXX)
+
+if ! [[ -w $temp ]]; then
+    echo "Error, could not create writable temp dir '$temp'" >&2
+    exit 1
+fi
 
 # Set $shrink and $reducecolors for convert when ssh'ing.
 maybeshrink

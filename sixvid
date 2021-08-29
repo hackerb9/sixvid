@@ -380,16 +380,35 @@ converttosixel() {
     # and delete the .pnm for as long as process $pid is alive.
     local pid=$1  temp=$2  base="$3"
     local onelasttime=""
+    local numcpus		# Number of CPUs available
+    local -a a			# Temporary array
+    local t			# Temporary filename
+    
+    a=( /sys/devices/system/cpu/cpu[0-9]* )
+    numcpus=${#a[@]}		# Defaults to 1 if /sys not mounted
+    # Note: we actually run numcpus+1 processes.
+
     while true; do
 	local -i j=1
-	while [[ -s $temp/$base-$j.pnm ]]; do
-	    t=$temp/$base-$j.pnm
-	    if [ ! -s "$t.sixel" ]; then
-		convert $shrink $reducecolors  \
-			"$t"'[>1000x>1000]'  "$t.sixel" 2>/dev/null
+	for t in "$temp/$base-"*.pnm; do
+	    a=( $(jobs -rp) )
+	    while [[ ${#a[@]} -gt $numcpus ]]; do
+		sleep 0.1
+		a=( $(jobs -rp) )
+	    done
+		
+	    if [[ "$t" == *'-*.pnm' ]]; then sleep 0.001; fi
+	    if [[ -s "$t" ]]; then
+		if [ ! -s "$t.sixel" ]; then
+		    mv "$t" "$t.inprocess";
+		    ( convert $shrink $reducecolors  \
+			      "pnm:$t.inprocess"'[>1000x>1000]' \
+			      "$t.sixel"  2>/dev/null \
+			  && rm "$t.inprocess" 2>/dev/null \
+			      || mv "$t.inprocess" "$t" 2>/dev/null
+		    ) &
+		fi
 	    fi
-	    rm "$t"
-	    j=j+1
 	done
 	if [[ $onelasttime ]]; then break; fi
 	if ! kill -0 $pid 2>&-; then onelasttime=yup; fi
@@ -424,7 +443,11 @@ fi
 maybeshrink
 
 # Run background job converting movie file to split frames
-nice ffmpeg -loglevel warning -i "$file" -f image2 "$temp/$base-%d.pnm" &
+if ! type ffmpeg >/dev/null; then
+    echo "Please install ffmpeg" >&2
+    exit 1
+fi
+nice ffmpeg -loglevel warning -i "$file" -f image2 "$temp/$base-%08d.pnm" &
 
 # Run background job converting frames to sixel
 converttosixel $! "$temp" "$base" &
@@ -441,13 +464,14 @@ stty -icanon		  # Don't consume backspace key before 'read'.
 declare -g QUITFLAG=""		# Set by waitforkey()
 while [ -z "$QUITFLAG" ]; do
     declare -i i=1
-    while [[ -s $temp/$base-$i.pnm.sixel ]]; do
-	t=$temp/$base-$i.pnm.sixel
+    t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
+    while [[ -s $t ]]; do
+	t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
 	tput home
 	tput el
-	echo -n "$base-$i"
-	jobs %1 >&- 2>&-  &&  echo -n " (decoding in background)"
-	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing in background)"
+	echo -n "$base $i"
+	jobs %1 >&- 2>&-  &&  echo -n " (decoding)"
+	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing)"
 	echo
 	if [ -s "$t" ]; then
 	    cat "$t"

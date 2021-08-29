@@ -93,8 +93,9 @@ can imagine no better way the world could be. All bugs we reject as
 
 ## Bugs, bugs, bugs
 
-* If first guess of delay is far off the mark, then it can take a few
-  seconds for the animation to play at the correct FPS.
+* If first guess of weightestimate — milliseconds to transfer and
+  display a single sixel frame — is far off the mark, then it can take
+  a few seconds for the animation to play at the correct FPS.
 
 * For large videos, probably should render to 1-bit sixel as quickly
   as possible and then replace it with higher depth once all the

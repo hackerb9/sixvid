@@ -126,15 +126,14 @@ can imagine no better way the world could be. All bugs we reject as
 
 ## Benchmarking with sixvid's FPS
 
-You can use `sixvid` to give you a rough idea of how fast the various
-sixel interpreters in terminal emulators function relative to each
-other on your machine. Hit the letter `b` while viewing (or use the
-`-b` command line flag) to turn on benchmarking mode, which attempts
-to send the image as fast as possible.
+You can use `sixvid` to give you a rough idea of how fast terminal
+emulators interpret sixels on your machine. Hit the letter `b` while
+viewing (or use the `-b` flag) to turn on benchmarking mode, which
+attempts to send the frames as fast as possible.
 
 Because the FPS number depends greatly on your own machine, it is not
-a pure measurement of an terminal emulator's speed. You cannot say one
-terminal emulator is faster if the numbers were calculated on
+a pure measurement of a terminal emulator's speed. You cannot compare
+numbers for different terminal emulator if they were calculated on
 different machines.
 
 With that caveat, the sixvid FPS numbers are good enough to at least
@@ -149,7 +148,7 @@ sixvid --benchmark nyantocat.gif
 
 |Terminal|Frames per Second|Notes|
 |:-:|:-:|:-|
-|foot 1.6.4 | 169 FPS||
-|mlterm 3.9.0 | 240 FPS||
-|XTerm(366) | 223 FPS||
-|yaft 0.28+<br/>(git 2018-11-14) | 230 FPS|Linux framebuffer version|
+|[foot](https://codeberg.org/dnkl/foot) 1.6.4 | 169 FPS|Debian 11 (Bullseye) package|
+|[mlterm](https://sourceforge.net/projects/mlterm/) 3.9.0 | 240 FPS|Debian 11 (Bullseye) package|
+|[XTerm](https://invisible-island.net/xterm/)(366) | 223 FPS|Debian 11 (Bullseye) package|
+|[yaft](http://uobikiemukot.github.io/yaft/) 0.28+<br/>(git 2018-11-14) | 230 FPS|Linux framebuffer version|

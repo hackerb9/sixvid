@@ -39,6 +39,7 @@ Usage: sixvid [ -e | -s | -S ] [ -b ] <filename>
 -s	--shrink, --ssh 	Force shrinking color/geometry as if over ssh.
 -S	--serial 		Force shrinking color/geometry as if serial.
 -b	--benchmark 		Show frames as fast as possible.
+	--shm	 		Write temp files to /dev/shm/
 
 Interactive Keys
 
@@ -376,7 +377,7 @@ waitforkey() {
 converttosixel() {
     # Given a process ID (pid), a directory (dir), and a basename (base),
     # watch for files $dir/$base-%d.pnm and convert them to sixel
-    # for as long as process $pid is alive.
+    # and delete the .pnm for as long as process $pid is alive.
     local pid=$1  temp=$2  base="$3"
     local onelasttime=""
     while true; do
@@ -387,6 +388,7 @@ converttosixel() {
 		convert $shrink $reducecolors  \
 			"$t"'[>1000x>1000]'  "$t.sixel" 2>/dev/null
 	    fi
+	    rm "$t"
 	    j=j+1
 	done
 	if [[ $onelasttime ]]; then break; fi

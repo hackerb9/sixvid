@@ -70,23 +70,37 @@ Other keys
 
 * ffmpeg (only needed for video formats ImageMagick does not innately know)
 
-## Limitations
+## Todo
 
-* Does not attempt to play audio. This is unlikely to happen until
-  machines are so fast it's easy for a shell script to write 44,100
-  16-bit stereo samples per second to an audio device.
+* Utilize transparent GIF techniques to optimize sixel output.
+
+* sending a single frame to get an initial "weightestimate" instead of
+  hardcoding it. 
+
+* Average the benchmark FPS over time and also show std deviation.
+  (Some terminals are inconsistent in their speed).
+
+* Detect and utilize VT340 double-buffering.
+
+* Either crop large images or go back to using DECSDM.
+
+## Limitations
 
 * Takes an exorbitant amount of /tmp space as it unpacks every frame
   as sixels. Gzipping the sixels may help, at the cost of CPU, but
   there is no obvious solution to this problem.
 
+* Does not attempt to play audio. This is unlikely to happen until
+  machines are so fast it's easy for a shell script to write 44,100
+  16-bit stereo samples per second to an audio device.
+
 * Large videos on slow CPUs might not finish rendering to sixel before
   the animation loops back to the start. The most obvious alternative,
-  stuttering along as the CPU decodes each frame, is boring to watch
-  while waiting for the decoding to finish. The second most obvious
-  alternative, waiting until the entire video is decoded, is a
-  non-starter as the video may be very long and the user might only
-  need to see the first few seconds before they want to quit. 
+  stuttering along as the CPU decodes each frame, is boring to watch.
+  The second most obvious alternative, waiting until the entire video
+  is decoded, is a non-starter as the video may be very long and the
+  user might only need to see the first few seconds before they want
+  to quit.
 
 ## Bugs, bugs, bugs
 
@@ -108,20 +122,6 @@ Other keys
   some terminals may be slower at rendering a large image than one
   with more colors, given the same filesize.
 
-
-## Todo
-
-* Utilize transparent GIF techniques to optimize sixel output.
-
-* sending a single frame to get an initial "weightestimate" instead of
-  hardcoding it. 
-
-* Average the benchmark FPS over time and also show std deviation.
-  (Some terminals are inconsistent in their speed).
-
-* Detect and utilize VT340 double-buffering.
-
-* Either crop large images or go back to using DECSDM.
 
 ## Benchmarking with sixvid's FPS
 

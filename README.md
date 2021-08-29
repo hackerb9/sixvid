@@ -42,8 +42,8 @@ Other keys
 |:-|:-|:-|
 | -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
 | -e | --no-shrink<br/>--exact | Show image exactly, no color/geometry reduction regardless of ssh or serial connection |
-| -s | --shrink<br/>--ssh | Force shrinking color/geometry, pretending to be over an ssh network connection |
-| -S | --serial | Force shrinking color/geometry, pretending to be over a serial connection |
+| -s | --shrink<br/>--ssh | Force shrinking color/geometry<br/>(pretend to be over ssh) |
+| -S | --serial | Force shrinking color/geometry<br/>(pretend to be over a serial connection) |
 
 
 ## Niceties
@@ -111,7 +111,43 @@ can imagine no better way the world could be. All bugs we reject as
 
 ## Todo
 
+* Utilize transparent GIF techniques to optimize sixel output.
+
 * Currently, we just have the initial delay hardcoded, but we ought to
   try sending a single frame to get a better estimate.
 
+* Average the benchmark FPS over time and also show std deviation.
+  (Some terminals are inconsistent in their speed).
 
+* If a terminal supports double-buffering, as the VT340 does, use it.
+
+* Someday, go back to using DECSDM (sixel display mode).
+
+## Benchmarking with sixvid's FPS
+
+You can use `sixvid` to give you a rough idea of how fast the various
+sixel interpreters in terminal emulators function relative to each
+other on your machine. Hit the letter `b` while viewing (or use the
+`-b` command line flag) to turn on benchmarking mode, which attempts
+to send the image as fast as possible.
+
+Because the FPS number depends greatly on your own machine, it is not
+a pure measurement of an terminal emulator's speed. You cannot say one
+terminal emulator is faster if the numbers were calculated on
+different machines.
+
+With that caveat, the sixvid FPS numbers are good enough to at least
+give you a sense of relative speed of terminal emulators.
+
+As of August 2021, here are the speeds on hackerb9's box using the
+[nyantocat.gif](../blobs/main/nyantocat.gif) image.
+
+```bash
+sixvid --benchmark nyantocat.gif
+```
+
+|Terminal|Frames per Second|
+|:-:|:-:|
+|foot 1.6.4 | 169 FPS|
+|mlterm 3.9.0 | 240 FPS|
+|XTerm(366) | 223 FPS|

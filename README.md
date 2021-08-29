@@ -40,10 +40,11 @@ Other keys
 
 | Short | Long | Meaning |
 |:-|:-|:-|
-| -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
 | -e | --no-shrink<br/>--exact | Show image exactly, no color/geometry reduction regardless of ssh or serial connection |
 | -s | --shrink<br/>--ssh | Force shrinking color/geometry<br/>(pretend to be over ssh) |
 | -S | --serial | Force shrinking color/geometry<br/>(pretend to be over a serial connection) |
+| -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
+|    | --shm | For benchmarking, try to use /dev/shm/ RAM disk for temp files |
 
 
 ## Niceties
@@ -145,7 +146,7 @@ As of August 2021, here are the speeds on hackerb9's box using the
 [nyantocat.gif](nyantocat.gif) image.
 
 ```bash
-sixvid --benchmark nyantocat.gif
+sixvid --benchmark --shm nyantocat.gif
 ```
 
 |Terminal|Frames per Second|Notes|

@@ -59,8 +59,9 @@ EOF
 
 
 TEMP=$(getopt -o 'besS' \
-	      --long 'benchmark,no-shrink,exact,shrink,ssh,serial' -- "$@") \
-    || usage
+	      --long 'no-shrink,exact,shrink,ssh,serial' \
+	      --long 'benchmark,shm' \
+	      -- "$@") || usage
 eval set -- "$TEMP"
 unset TEMP
 
@@ -83,6 +84,18 @@ while true; do
 	;;	  
     "-b"|"--benchmark")
 	bflag=yup # Run as fast as possible, setting goalfps to infinity
+	shift
+	continue
+	;;	  
+    "--shm")
+	shmflag=/dev/shm/$USER
+	if ! [[ -d "$shmflag" && -w "$shmflag" ]]; then
+	    if ! mkdir "$shmflag"; then
+		echo "Warning: Unable to create directory '$shmflag'" >&2
+		sleep 1
+		shmflag=""
+	    fi
+	fi
 	shift
 	continue
 	;;	  
@@ -393,10 +406,12 @@ base=$(basename "$file")
 base=${base%.*}
 file="$file"
 
-# /dev/shm/ is a fast RAM disk, but may be small.
-# temp=/dev/shm/$USER/sixvid.$$			
-# mkdir $temp
-temp=$(mktemp -t -d sixvid.XXXXXX)
+# /dev/shm/ is a fast RAM disk, but could use up all your RAM.
+if [[ $shmflag ]]; then
+    temp=$(mktemp -d $shmflag/sixvid.XXXXXX)
+else
+    temp=$(mktemp -t -d sixvid.XXXXXX)
+fi
 
 if ! [[ -w $temp ]]; then
     echo "Error, could not create writable temp dir '$temp'" >&2

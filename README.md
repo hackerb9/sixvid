@@ -101,9 +101,11 @@ can imagine no better way the world could be. All bugs we reject as
   as possible and then replace it with higher depth once all the
   frames are done.
 
-* Should use DECSDM so that large images don't cause scrolling, but
-  we're in the awkward, teenage years of understanding DECSDM.
-  (Viz.: dankamongmen's [DECSDM is a poorly-understood hellscape"](https://github.com/dankamongmen/notcurses/issues/1782)).
+* Should use DECSDM (sixel display mode) so that large images don't
+  cause scrolling, but we're in the awkward, teenage years of
+  understanding DECSDM. (Viz.: dankamongmen's [DECSDM is a
+  poorly-understood
+  hellscape"](https://github.com/dankamongmen/notcurses/issues/1782)).
 
 * Uses number of sixel bytes being sent to guess at framerate, but
   some terminals may be slower at rendering a large image than one
@@ -114,15 +116,15 @@ can imagine no better way the world could be. All bugs we reject as
 
 * Utilize transparent GIF techniques to optimize sixel output.
 
-* Currently, we just have the initial delay hardcoded, but we ought to
-  try sending a single frame to get a better estimate.
+* sending a single frame to get an initial "weightestimate" instead of
+  hardcoding it. 
 
 * Average the benchmark FPS over time and also show std deviation.
   (Some terminals are inconsistent in their speed).
 
-* If a terminal supports double-buffering, as the VT340 does, use it.
+* Detect and utilize VT340 double-buffering.
 
-* Someday, go back to using DECSDM (sixel display mode).
+* Either crop large images or go back to using DECSDM.
 
 ## Benchmarking with sixvid's FPS
 

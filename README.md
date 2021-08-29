@@ -40,8 +40,8 @@ Other keys
 
 | Short | Long | Meaning |
 |:-|:-|:-|
-| -e | --no-shrink<br/>--exact | Show image exactly, no color/geometry reduction regardless of ssh or serial connection |
-| -s | --shrink<br/>--ssh | Force shrinking color/geometry<br/>(pretend to be over ssh) |
+| -e | --no-shrink | Show image exactly, no color/geometry reduction regardless of ssh or serial connection<br/>(alias --exact) |
+| -s | --shrink | Force shrinking color/geometry<br/>(pretend to be over ssh)<br/>(alias --ssh) |
 | -S | --serial | Force shrinking color/geometry<br/>(pretend to be over a serial connection) |
 | -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
 |    | --shm | Try to use /dev/shm/ RAM disk for temp files<br/>(for benchmarking) |

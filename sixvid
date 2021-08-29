@@ -126,7 +126,8 @@ cleanup() {
     while kill $(jobs -p) 2>&-; do sleep 0.1; done   # Kill background jobs.
     echo -n $'\e\\'		# Escape sequence to stop SIXEL.
     stty echo			# Reset terminal to show characters.
-    tput cnorm			# Show cursor
+    stty icanon			# Allow backspace to work again.
+    tput cnorm			# Show cursor.
     rm -rf $temp		# Delete split frames.
     if [[ ! $bflag ]]; then
 	echo -n $'\r'; tput el	# Clear line for prompt.
@@ -307,8 +308,8 @@ waitforkey() {
 		 ;;
 	    "]") goalfps=goalfps+1
 		 ;;
-	    $'\b'|$'\c?') goalfps=$originalgoal	# Backspace to reset goalfps
-			  bflag=""		# Disable infinite FPS
+	    $'\b'|$'\c?') goalfps=$originalgoal	# Backspace to reset goalfps.
+			  bflag=""		# Also disable infinite FPS.
 			 ;;
 	    l|$'\x0c') clear			# ^L to redraw screen
 		       ;;
@@ -332,11 +333,16 @@ waitforkey() {
 		 return 1	# Quit normally
 		 ;;
 	    b) bflag=$([[ $bflag ]] && echo || echo yup)
-	       # Toggle benchmarking (max FPS)
+	       # Toggle benchmarking (infinite FPS)
 	       ;;
-	    q|Q|$'\e') QUITFLAG=true;
-		       return 2	# Different return code to let 'vv' quit completely on 'q'
-		       ;;
+	    q|Q|$'\e')
+		QUITFLAG=true;
+		# Different return code to let 'vv' quit completely on 'q'
+		return 2	
+		;;
+	    *)			# Default, ignore unknown keys
+		;;
+
 	esac
     fi
 
@@ -397,6 +403,10 @@ tput civis
 if jobrunning; then
     echo -en "working...\r"
 fi
+
+stty -echo		  # Don't show keys hit
+stty -icanon		  # Don't consume backspace key before 'read'.
+
 declare -g QUITFLAG=""		# Set by waitforkey()
 while [ -z "$QUITFLAG" ]; do
     declare -i i=1

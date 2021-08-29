@@ -147,8 +147,9 @@ As of August 2021, here are the speeds on hackerb9's box using the
 sixvid --benchmark nyantocat.gif
 ```
 
-|Terminal|Frames per Second|
-|:-:|:-:|
-|foot 1.6.4 | 169 FPS|
-|mlterm 3.9.0 | 240 FPS|
-|XTerm(366) | 223 FPS|
+|Terminal|Frames per Second|Notes|
+|:-:|:-:|:-|
+|foot 1.6.4 | 169 FPS||
+|mlterm 3.9.0 | 240 FPS||
+|XTerm(366) | 223 FPS||
+|yaft 0.28+<br/>(git 2018-11-14) | 230 FPS|Linux framebuffer version|

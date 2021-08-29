@@ -140,7 +140,7 @@ With that caveat, the sixvid FPS numbers are good enough to at least
 give you a sense of relative speed of terminal emulators.
 
 As of August 2021, here are the speeds on hackerb9's box using the
-[nyantocat.gif](../blobs/main/nyantocat.gif) image.
+[nyantocat.gif](nyantocat.gif) image.
 
 ```bash
 sixvid --benchmark nyantocat.gif

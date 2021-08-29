@@ -1,6 +1,7 @@
 #!/bin/bash
 # Show videos/gifs using sixel.
 # Space to quit, p to pause. '[', ']', to change goal fps. 
+# Backspace to reset goal fps. 'b' to attempt to show infinite fps.
 
 # Niceties
 # * Decodes video and converts to sixel in background.
@@ -28,25 +29,73 @@ declare -i bandwidth=$((2**22))
 
 # Optional lower value when using SSH. 
 declare -i sshbandwidth=$((2**18))
-
 # Note: on a serial terminal, bandwidth is automatically set to baud rate.
 
+usage() {
+    cat <<EOF
+Usage: sixvid [ -e | -s | -S ] [ -b ] <filename>
 
-case "$1" in
-    "-e"|"--no-shrink")	eflag=yup # Show exactly, no color/geometry reduction
-			shift	  # (Ignores ssh or serial connection).
-			;;	  
-    "-s"|"--shrink")	sflag=yup # Force shrinking color/geometry
-			shift	  # (Pretends to be over network).
-			;;	  
-    "-S"|"--serial")	Sflag=yup # Force shrinking color/geometry
-			shift	  # (Pretends to be over serial connection).
-			;;	  
-    "-b"|"--benchmark")	bflag=yup # Run as fast as possible, setting
-			shift	  # goalfps to infinity
-			;;	  
-esac
+-e	--no-shrink, --exact 	Show image exactly, no color/geometry reduction.
+-s	--shrink, --ssh 	Force shrinking color/geometry as if over ssh.
+-S	--serial 		Force shrinking color/geometry as if serial.
+-b	--benchmark 		Show frames as fast as possible.
 
+Interactive Keys
+
+    Space	Quit
+    p 		Pause
+    [, ] 	Slower, faster FPS
+    Backspace 	Reset FPS
+
+Other keys
+    b	 	Benchmarking (draw as fast as possible)
+    ^L 		Redraw screen
+    M	 	use mimeopen to launch external viewer
+    q, Esc 	Quit, but with different return code (for wrapper scripts)
+EOF
+    exit 1
+}
+
+
+
+TEMP=$(getopt -o 'besS' \
+	      --long 'benchmark,no-shrink,exact,shrink,ssh,serial' -- "$@") \
+    || usage
+eval set -- "$TEMP"
+unset TEMP
+
+while true; do
+    case "$1" in
+    "-e"|"--exact"|"--no-shrink")
+	eflag=yup # Show exactly, no color/geometry reduction
+	shift	  # (Ignores ssh or serial connection).
+	continue
+	;;	  
+    "-s"|"--ssh"|"--shrink")
+	sflag=yup # Force shrinking color/geometry
+	shift	  # (Pretends to be over ssh network).
+	continue
+	;;	  
+    "-S"|"--serial")
+	Sflag=yup # Force shrinking color/geometry
+	shift	  # (Pretends to be over serial connection).
+	continue
+	;;	  
+    "-b"|"--benchmark")
+	bflag=yup # Run as fast as possible, setting goalfps to infinity
+	shift
+	continue
+	;;	  
+    '--')			# End of flags and options
+	shift
+	break
+	;;
+    *)
+	echo "This isn't supposed to happen. Getopt error on input: '$1'" >&2
+	exit 1
+	;;
+    esac
+done
 
 if [[ ! -r "$1" ]]; then
     echo "Cannot read '$1'"
@@ -58,7 +107,7 @@ fi
 declare -i goalfps=5
 declare -i n=0 s=0 fps=0 delay=0
 
-declare -i weightestimate=20	# Estimated milliseconds to xfer and
+declare -i weightestimate=5	# Estimated milliseconds to xfer and
 				# display a single sixel frame.
 				# (Dynamically adjusted to get FPS correct).
 
@@ -259,6 +308,7 @@ waitforkey() {
 	    "]") goalfps=goalfps+1
 		 ;;
 	    $'\b'|$'\c?') goalfps=$originalgoal	# Backspace to reset goalfps
+			  bflag=""		# Disable infinite FPS
 			 ;;
 	    l|$'\x0c') clear			# ^L to redraw screen
 		       ;;

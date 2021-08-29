@@ -12,7 +12,7 @@ finished. It does have some nice features, though.
 
 ## Usage
 
-**sixvid** [ *-e* | *-s* | *-S* ]  [ *-b* ] <filename>
+**sixvid** [ *-e* | *-s* | *-S* ]  [ *-b* ] &lt;filename>
 
 ```bash
 $ sixvid nyantocat.gif

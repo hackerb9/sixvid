@@ -44,7 +44,6 @@ Other keys
 | -s | --shrink | Force shrinking color/geometry<br/>(pretend to be over ssh)<br/>(alias --ssh) |
 | -S | --serial | Force shrinking color/geometry<br/>(pretend to be over a serial connection) |
 | -b | --benchmark | Run as fast as possible, setting goal FPS to infinity |
-|    | --shm | Try to use /dev/shm/ RAM disk for temp files<br/>(for benchmarking) |
 
 
 ## Niceties
@@ -61,6 +60,9 @@ Other keys
 * Dynamically adjusts delay loop to approximate correct FPS.
 
 * Attempts to shrinks geometry/color depth when on slow ssh/serial connection.
+
+* Exiting program when benchmarking shows average FPS, starting from
+  time when background processes (decoding, sixelizing) finished.
 
 ## Requirements
 
@@ -142,7 +144,7 @@ As of August 2021, here are the speeds on hackerb9's box using the
 [nyantocat.gif](nyantocat.gif) image.
 
 ```bash
-sixvid --benchmark --shm nyantocat.gif
+sixvid --benchmark nyantocat.gif
 ```
 
 |Terminal|Frames per Second|Notes|

@@ -88,7 +88,7 @@ while true; do
 	shift
 	continue
 	;;	  
-    "--shm")
+    "--shm")			# DEPRECATED as it doesn't help much.
 	shmflag=/dev/shm/$USER
 	if ! [[ -d "$shmflag" && -w "$shmflag" ]]; then
 	    if ! mkdir "$shmflag"; then
@@ -148,10 +148,15 @@ cleanup() {
 	rm $temp/*pnm* 2>&-	# Delete split frames, if any.
 	rmdir $temp
     fi
-    if [[ ! $bflag ]]; then
-	echo -n $'\r'; tput el	# Clear line for prompt.
-    else
-	echo			# Leave FPS printed if benchmarking
+    echo -n $'\r'; tput el	# Clear line for prompt.
+
+    if [[ $bflag ]]; then
+	endtime=$SECONDS
+	duration=$((endtime-starttime))
+	if [[ $duration > 0 ]]; then
+	    echo -n "Average FPS while benchmarking: "
+	    echo $((totalframes/duration)) FPS
+	fi
     fi
 }
 trap cleanup EXIT
@@ -354,9 +359,9 @@ waitforkey() {
 	    " ") QUITFLAG=true;
 		 return 1	# Quit normally
 		 ;;
-	    b) bflag=$([[ $bflag ]] && echo || echo yup)
-	       # Toggle benchmarking (infinite FPS)
-	       ;;
+	    b)  # Toggle benchmarking (infinite FPS)
+		bflag=$([[ $bflag ]] && echo || echo yup)
+	       	;;
 	    q|Q|$'\e')
 		QUITFLAG=true;
 		# Different return code to let 'vv' quit completely on 'q'
@@ -410,24 +415,29 @@ converttosixel() {
 		fi
 	    fi
 	done
+
+	# Process creating pnm files has finished?
 	if [[ $onelasttime ]]; then break; fi
 	if ! kill -0 $pid 2>&-; then onelasttime=yup; fi
     done
 }
-
-
 
 jobrunning() {
     # Return true if a background job is still running
     jobs -r | grep -q Running
 }
 
+
+### MAIN
+
 file=$(realpath "$1")
 base=$(basename "$file")
 base=${base%.*}
 file="$file"
 
-# /dev/shm/ is a fast RAM disk, but could use up all your RAM.
+declare -i starttime=0 endtime=0 totalframes=0  # Overal FPS for benchmarking
+
+# /dev/shm/ is a fast RAM disk, but may consume all RAM and doesn't help much.
 if [[ $shmflag ]]; then
     temp=$(mktemp -d $shmflag/sixvid.XXXXXX)
 else
@@ -472,12 +482,20 @@ while [ -z "$QUITFLAG" ]; do
 	echo -n "$base $i"
 	jobs %1 >&- 2>&-  &&  echo -n " (decoding)"
 	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing)"
+
+	if jobs %2 >&- 2>&- ; then
+	    # For benchmarking, start counting when background jobs end.
+	    starttime=$SECONDS
+	    totalframes=0;
+	fi
+
 	echo
 	if [ -s "$t" ]; then
 	    cat "$t"
 	    tput cup 1000 0
 	    echo -n "$fps FPS (goal $goalfps, delay $delay ms, overhead $weightestimate ms)"
 	fi
+	totalframes=totalframes+1 
 
 	adjustdelay
 	waitforkey; status=$?

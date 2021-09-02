@@ -151,11 +151,11 @@ cleanup() {
     echo -n $'\r'; tput el	# Clear line for prompt.
 
     if [[ $bflag ]]; then
-	endtime=$SECONDS
+	endtime=$(date +%s%N)
 	duration=$((endtime-starttime))
 	if [[ $duration > 0 ]]; then
 	    echo -n "Average FPS while benchmarking: "
-	    echo $((totalframes/duration)) FPS
+	    echo $((totalframes*10**9/duration)) FPS
 	fi
     fi
 }
@@ -485,7 +485,7 @@ while [ -z "$QUITFLAG" ]; do
 
 	if jobs %2 >&- 2>&- ; then
 	    # For benchmarking, start counting when background jobs end.
-	    starttime=$SECONDS
+	    starttime=$(date +%s%N)
 	    totalframes=0;
 	fi
 

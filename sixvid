@@ -148,14 +148,18 @@ cleanup() {
 	rm $temp/*pnm* 2>&-	# Delete split frames, if any.
 	rmdir $temp
     fi
-    echo -n $'\r'; tput el	# Clear line for prompt.
 
-    if [[ $bflag ]]; then
-	endtime=$SECONDS
-	duration=$((endtime-starttime))
-	if [[ $duration > 0 ]]; then
-	    echo -n "Average FPS while benchmarking: "
-	    echo $((totalframes/duration)) FPS
+    tput cup 1000 0
+    echo -n $'\r'; tput el		# Clear status line
+
+    if [[ $bflag || $DEBUG ]]; then
+	echo
+	endnano=$(date +%s.%N)
+	durnano=$(echo $endnano-$startnano | bc -q)	
+	FPS=$(echo "scale=2; $totalframes/$durnano" | bc -q)
+	echo "$FPS frames per second (after sixelizing finished)"
+	if [[ $DEBUG ]]; then
+	    echo " = $totalframes frames / $durnano seconds"
 	fi
     fi
 }
@@ -361,6 +365,7 @@ waitforkey() {
 		 ;;
 	    b)  # Toggle benchmarking (infinite FPS)
 		bflag=$([[ $bflag ]] && echo || echo yup)
+		starttime=0
 	       	;;
 	    q|Q|$'\e')
 		QUITFLAG=true;
@@ -427,6 +432,13 @@ jobrunning() {
     jobs -r | grep -q Running
 }
 
+resettimer() {
+    # Start the stopwatch for benchmarking
+    starttime=$SECONDS
+    startnano=$(date +%s.%N)
+    totalframes=0;
+}
+
 
 ### MAIN
 
@@ -483,17 +495,29 @@ while [ -z "$QUITFLAG" ]; do
 	jobs %1 >&- 2>&-  &&  echo -n " (decoding)"
 	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing)"
 
-	if jobs %2 >&- 2>&- ; then
+	if [[ $starttime -eq 0 ]] && ! jobs %2 >&- 2>&- ; then
 	    # For benchmarking, start counting when background jobs end.
-	    starttime=$SECONDS
-	    totalframes=0;
+	    echo -n " (benchmarking start)"
+	    resettimer
 	fi
 
 	echo
 	if [ -s "$t" ]; then
 	    cat "$t"
-	    tput cup 1000 0
-	    echo -n "$fps FPS (goal $goalfps, delay $delay ms, overhead $weightestimate ms)"
+	    if [[ "$starttime" -gt 0 ]]; then
+		tput cup 1000 0
+		echo -n "$fps FPS (goal $goalfps, delay $delay ms, overhead $weightestimate ms)  "
+	    fi
+
+	    if [[ $DEBUG ]]; then
+		durnano=$(echo $(date +%s.%N)-$startnano | bc -q)	
+		if [[ $startnano ]]; then
+		    tput cuu 1
+		    echo -n $'\r'
+		    echo -n "$totalframes / $durnano = "
+		    echo  "$totalframes / $durnano" | bc -q
+		fi
+	    fi
 	fi
 	totalframes=totalframes+1 
 

@@ -59,6 +59,14 @@ declare -g   Sflag=""		#  --serial
 declare -g   bflag=""		#  --benchmark 
 declare -g   shmflag=""		#  --shm 
 
+# Benchmarking global vars
+declare -i starttime=0		# Start time in seconds
+
+declare -g   startnano=""	# Start time in nanoseconds
+declare -g   endnano=""		# End time in nanoseconds
+declare -gi  totalframes=0	# Frames rendered
+declare -g   FPS=""		# Decimal frames/second (string, unlike "fps")
+
 declare -g   DEBUG=${DEBUG}	# Set to anything to enable debugging
 
 debug() {
@@ -569,8 +577,6 @@ file=$(realpath "$1")
 base=$(basename "$file")
 base=${base%.*}
 file="$file"
-
-declare -i starttime=0 endtime=0 totalframes=0  # Overal FPS for benchmarking
 
 # /dev/shm/ is a fast RAM disk, but may consume all RAM and doesn't help much.
 if [[ $shmflag ]]; then

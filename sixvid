@@ -188,12 +188,16 @@ cleanup() {
     echo -n $'\r'; tput el		# Clear status line
 
     if [[ ( $bflag || $DEBUG ) && $startnano  ]]; then
-	echo
+	tput cuu 1
+	echo -n $'\r'; tput el		# Clear second to last line
 	endnano=$(date +%s.%N)
 	durnano=$(echo $endnano-$startnano | bc -q)	
 	FPS=$(echo "scale=2; $totalframes/$durnano" | bc -q)
 	if [[ $DEBUG ]]; then
-	    echo "$totalframes frames / $durnano seconds == "
+	    tput cuu 1			# Up to third to last line
+	    echo -n "$totalframes frames / "
+	    echo -n $(echo "scale=2; $durnano/1" | bc -q)
+	    echo "seconds == "
 	fi
 	echo "$FPS frames per second (after sixelizing finished)"
     fi

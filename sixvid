@@ -48,8 +48,9 @@ declare -gi  width height	# Screen width and height in pixels.
 declare -gi  default_width=800	# Default screen width in pixels.
 declare -gi  default_height=480	# Default Screen height in pixels.
 declare -g   need_clear=""	# The screen needs clearing before next frame?
-declare -g   shrink=""		# Optionally shrink video to save bandwidth
-declare -g   reducecolors=""	# Optionally reduce colors to save bandwidth
+declare -g   shrink=""		# Optionally shrink video to save bandwidth.
+declare -g   reducecolors=""	# Optionally reduce colors to save bandwidth.
+declare -g   quit_flag=""	# Set by waitforkey() to exit main loop.
 
 # Command line flags
 declare -g   eflag=""		#  --exact 
@@ -375,7 +376,7 @@ waitforkey() {
 	    p) echo -en '\r'; tput el
 	       read -n1 -p $'Paused...'
 	       echo -en '\r'; tput el
-	       if [[ "$REPLY" == "q" ]]; then QUITFLAG=true; return 2; fi
+	       if [[ "$REPLY" == "q" ]]; then quit_flag=true; return 2; fi
 	       OLDSECONDS=$SECONDS
 	       n=0
 	       ;;
@@ -388,7 +389,7 @@ waitforkey() {
 	       OLDSECONDS=$SECONDS
 	       n=0
 	       ;;
-	    " ") QUITFLAG=true;
+	    " ") quit_flag=true;
 		 return 1	# Quit normally
 		 ;;
 	    b)  # Toggle benchmarking (infinite FPS)
@@ -396,7 +397,7 @@ waitforkey() {
 		starttime=0
 	       	;;
 	    q|Q|$'\e')
-		QUITFLAG=true;
+		quit_flag=true;
 		# Different return code to let 'vv' quit completely on 'q'
 		return 2	
 		;;
@@ -583,6 +584,9 @@ if ! [[ -w $temp ]]; then
     exit 1
 fi
 
+# Get window size in pixels
+windowchange
+
 # Set $shrink and $reducecolors for convert when ssh'ing.
 maybeshrink
 
@@ -605,8 +609,7 @@ fi
 stty -echo		  # Don't show keys hit
 stty -icanon		  # Don't consume backspace key before 'read'.
 
-declare -g QUITFLAG=""		# Set by waitforkey()
-while [ -z "$QUITFLAG" ]; do
+while [ -z "$quit_flag" ]; do
     declare -i i=1
     t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
     while [[ -s $t ]]; do
@@ -633,7 +636,8 @@ while [ -z "$QUITFLAG" ]; do
 	    fi
 
 	    if [[ $DEBUG ]]; then
-		durnano=$(echo $(date +%s.%N)-$startnano | bc -q)	
+		# This is very slow! 
+		durnano=$(echo $(date +%s.%N)-$startnano | bc -q)
 		if [[ $startnano ]]; then
 		    tput cuu 1
 		    echo -n $'\r'

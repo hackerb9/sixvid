@@ -72,59 +72,6 @@ Other keys
 
 * ffmpeg (only needed for video formats ImageMagick does not innately know)
 
-## Todo
-
-* Utilize transparent GIF techniques to optimize sixel output.
-
-* sending a single frame to get an initial "weightestimate" instead of
-  hardcoding it. 
-
-* Average the benchmark FPS over time and also show std deviation.
-  (Some terminals are inconsistent in their speed).
-
-* Detect and utilize VT340 double-buffering.
-
-* Either crop large images or go back to using DECSDM.
-
-## Limitations
-
-* Takes an exorbitant amount of /tmp space as it unpacks every frame
-  as sixels. Gzipping the sixels may help, at the cost of CPU, but
-  there is no obvious solution to this problem.
-
-* Does not attempt to play audio. This is unlikely to happen until
-  machines are so fast it's easy for a shell script to write 44,100
-  16-bit stereo samples per second to an audio device.
-
-* Large videos on slow CPUs might not finish rendering to sixel before
-  the animation loops back to the start. The most obvious alternative,
-  stuttering along as the CPU decodes each frame, is boring to watch.
-  The second most obvious alternative, waiting until the entire video
-  is decoded, is a non-starter as the video may be very long and the
-  user might only need to see the first few seconds before they want
-  to quit.
-
-## Bugs, bugs, bugs
-
-* If first guess of weightestimate — milliseconds to transfer and
-  display a single sixel frame — is far off the mark, then it can take
-  a few seconds for the animation to play at the correct FPS.
-
-* For large videos, probably should render to 1-bit sixel as quickly
-  as possible and then replace it with higher depth once all the
-  frames are done.
-
-* Should use DECSDM (sixel display mode) so that large images don't
-  cause scrolling, but we're in the awkward, teenage years of
-  understanding DECSDM. (Viz.: dankamongmen's [DECSDM is a
-  poorly-understood
-  hellscape"](https://github.com/dankamongmen/notcurses/issues/1782)).
-
-* Uses number of sixel bytes being sent to guess at framerate, but
-  some terminals may be slower at rendering a large image than one
-  with more colors, given the same filesize.
-
-
 ## Benchmarking with sixvid's FPS
 
 You can use `sixvid` to give you a rough idea of how fast terminal
@@ -149,7 +96,65 @@ sixvid --benchmark nyantocat.gif
 
 |Terminal|Frames per Second|Notes|
 |:-:|:-:|:-|
+|[contour](https://github.com/contour-terminal/contour/) 0.2.0.173++<br/>(git 2021-09-12) | 133 FPS|Compiled with debugger support enabled as it is not yet stable|
 |[foot](https://codeberg.org/dnkl/foot) 1.6.4 | 169 FPS|Debian 11 (Bullseye) package|
 |[mlterm](https://sourceforge.net/projects/mlterm/) 3.9.0 | 240 FPS|Debian 11 (Bullseye) package|
 |[XTerm](https://invisible-island.net/xterm/)(366) | 223 FPS|Debian 11 (Bullseye) package|
-|[yaft](http://uobikiemukot.github.io/yaft/) 0.28+<br/>(git 2018-11-14) | 230 FPS|Linux framebuffer version|
+|[yaft](http://uobikiemukot.github.io/yaft/) 0.28++<br/>(git 2018-11-14) | 230 FPS|Linux framebuffer version|
+
+## Todo
+
+* Utilize transparent GIF techniques to optimize sixel output.
+
+* Send a single frame to get an initial "weightestimate" instead of
+  hardcoding it. 
+
+* Benchmark should show std deviation of FPS since some some terminals seem especially
+  inconsistent in their speed.
+
+* Detect and utilize VT340 double-buffering via Page Memory.
+
+* Either crop/scale large images or go back to using DECSDM to prevent scrolling.
+
+* Catch SIGWINCH and resize the image appropriately.
+
+## Limitations
+
+* Takes an exorbitant amount of /tmp space as it unpacks every frame
+  as sixels. Gzipping the sixels may help, at the cost of CPU, but
+  there is no obvious solution to this problem.
+
+* Does not attempt to play audio. This is unlikely to happen until
+  machines are so fast it's easy for a shell script to write 44,100
+  16-bit stereo samples per second to an audio device.
+
+* Large videos on slow CPUs might not finish rendering to sixel before
+  the animation loops back to the start. The most obvious alternative,
+  stuttering along as the CPU decodes each frame, is boring to watch.
+  The second most obvious alternative, waiting until the entire video
+  is decoded, is a non-starter as the video may be very long and the
+  user might only need to see the first few seconds before they want
+  to quit.
+
+## Bugs, bugs, bugs
+
+* If the first guess of `weightestimate` — milliseconds to transfer and
+  display a single sixel frame — is far off the mark, then it can take
+  a few seconds for the animation to play at the correct FPS.
+
+* For large videos, sixvid should probably render to 1-bit sixel as quickly
+  as possible and then replace it with higher depth once all the
+  frames are done.
+
+* Eventually should use DECSDM (sixel display mode) so that large
+  images don't cause scrolling, but we're in the awkward, teenage
+  years of understanding DECSDM. (Viz.: dankamongmen's [DECSDM is a
+  poorly-understood
+  hellscape"](https://github.com/dankamongmen/notcurses/issues/1782)).
+
+* Sixvid uses the number of sixel bytes being sent to guess if it
+  should downscale/grayscale the image to maintain the framerate.
+  However, some terminals may be slower at rendering a large image
+  than one with more colors, given the same filesize.
+
+

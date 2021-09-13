@@ -10,6 +10,12 @@ Sixvid is a looping GIF viewer for sixel terminals written in bash. It
 was something hackerb9 wrote a long time ago and may never be properly
 finished. It does have some nice features, though.
 
+## Install
+
+Download [sixvid](https://github.com/hackerb9/sixvid/raw/sixvid) to a
+directory in your PATH (e.g., ~/bin or /usr/local/bin) and make it
+executable (chmod +x sixvid). 
+
 ## Usage
 
 **sixvid** [ *-e* | *-s* | *-S* ]  [ *-b* ] &lt;filename>

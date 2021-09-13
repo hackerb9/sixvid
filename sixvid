@@ -187,15 +187,15 @@ cleanup() {
     tput cup 1000 0
     echo -n $'\r'; tput el		# Clear status line
 
-    if [[ $bflag || $DEBUG ]]; then
+    if [[ ( $bflag || $DEBUG ) && $startnano  ]]; then
 	echo
 	endnano=$(date +%s.%N)
 	durnano=$(echo $endnano-$startnano | bc -q)	
 	FPS=$(echo "scale=2; $totalframes/$durnano" | bc -q)
-	echo "$FPS frames per second (after sixelizing finished)"
 	if [[ $DEBUG ]]; then
-	    echo " = $totalframes frames / $durnano seconds"
+	    echo "$totalframes frames / $durnano seconds == "
 	fi
+	echo "$FPS frames per second (after sixelizing finished)"
     fi
 }
 trap cleanup EXIT
@@ -475,7 +475,7 @@ resettimer() {
 
 getwindowsize() {
     # Send control sequences to find how large of a sixel image can be shown.
-    # Uses globals $DEFAULT_{WIDTH,_HEIGHT} if terminal does not respond.
+    # Uses globals $default_{width,_height} if terminal does not respond.
     # Outputs geometry as width then height in pixels. (echo $w $h)
 
     waitforterminal # Wait for terminal to be ready before querying.
@@ -640,8 +640,8 @@ while [ -z "$quit_flag" ]; do
 
 	    if [[ $DEBUG ]]; then
 		# This is very slow! 
-		durnano=$(echo $(date +%s.%N)-$startnano | bc -q)
 		if [[ $startnano ]]; then
+		    durnano=$(echo $(date +%s.%N)-$startnano | bc -q)
 		    tput cuu 1
 		    echo -n $'\r'
 		    echo -n "$totalframes / $durnano = "

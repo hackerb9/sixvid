@@ -4,9 +4,10 @@
 # Backspace to reset goal fps. 'b' to attempt to show infinite fps.
 
 # Niceties
-# * Decodes video and converts to sixel in background.
+# * Decodes video and converts to sixel in background using multiple cores.
 # * Dynamically adjusts delay loop to approximate correct FPS.
 # * Attempts to shrinks geometry/color depth when on slow ssh/serial connection.
+# * Reasonable benchmark behavior. 
 
 # Bugs
 
@@ -16,6 +17,8 @@
 
 # * Probably should render to 1-bit sixel as quickly as possible and
 #   then replace it with higher depth once all the frames are done.
+
+# * Should use the size of the screen for scaling the image.
 
 # hackerb9
 
@@ -30,6 +33,39 @@ declare -i bandwidth=$((2**22))
 # Optional lower value when using SSH. 
 declare -i sshbandwidth=$((2**18))
 # Note: on a serial terminal, bandwidth is automatically set to baud rate.
+
+# GLOBALS
+declare -i goalfps=5
+declare -i n=0 s=0 fps=0 delay=0 OLDSECONDS=$SECONDS
+
+declare -i weightestimate=5	# Estimated milliseconds to xfer and
+				# display a single sixel frame.
+				# (Dynamically adjusted to get FPS correct).
+
+declare -g   timeout=0.25       # Max secs to wait for control sequence response
+declare -gi  LINES COLUMNS 	# Screen width and height in rows, cols of text.
+declare -gi  width height	# Screen width and height in pixels.
+declare -gi  default_width=800	# Default screen width in pixels.
+declare -gi  default_height=480	# Default Screen height in pixels.
+declare -g   need_clear=""	# The screen needs clearing before next frame?
+declare -g   shrink=""		# Optionally shrink video to save bandwidth
+declare -g   reducecolors=""	# Optionally reduce colors to save bandwidth
+
+# Command line flags
+declare -g   eflag=""		#  --exact 
+declare -g   sflag=""		#  --shrink 
+declare -g   Sflag=""		#  --serial 
+declare -g   bflag=""		#  --benchmark 
+declare -g   shmflag=""		#  --shm 
+
+declare -g   DEBUG=${DEBUG}	# Set to anything to enable debugging
+
+debug() {
+    if [[ "${DEBUG:-}" ]]; then
+	echo "$@" >&2
+    fi
+}
+
 
 usage() {
     cat <<EOF
@@ -119,14 +155,6 @@ if [[ ! -r "$1" ]]; then
 fi
 
 
-# GLOBALS
-declare -i goalfps=5
-declare -i n=0 s=0 fps=0 delay=0
-
-declare -i weightestimate=5	# Estimated milliseconds to xfer and
-				# display a single sixel frame.
-				# (Dynamically adjusted to get FPS correct).
-
 shopt -s nocasematch
 goalfps=$(ffprobe "$(realpath $1)" 2>&1 | sed -rn 's/.* ([^,.]*)(\.[0-9]+)? fps.*/\1/p')
 [[ $goalfps != 0 ]] || goalfps=1
@@ -184,7 +212,7 @@ maybeshrink() {
 	read dummy baud dummy < <(stty)
 	bandwidth=baud/8
     fi
-    if [[ "$SSH_TTY" == `tty` || $sflag ]]; then
+    if [[ "${SSH_TTY:-}" == `tty` || $sflag ]]; then
 	# Over ssh (or -s flag), use $sshbandwidth as $bandwidth.
 	[[ $sshbandwidth ]] && bandwidth=$sshbandwidth
     fi
@@ -439,8 +467,102 @@ resettimer() {
     totalframes=0;
 }
 
+getwindowsize() {
+    # Send control sequences to find how large of a sixel image can be shown.
+    # Uses globals $DEFAULT_{WIDTH,_HEIGHT} if terminal does not respond.
+    # Outputs geometry as width then height in pixels. (echo $w $h)
+
+    waitforterminal # Wait for terminal to be ready before querying.
+		    # Necessary for Xterm-344 due to slow redraw bug.
+
+    local -i w=0 h=0 		# for reading width and height integers
+    local d			# dummy variable
+    local IFS=";"		# temporarily split on semicolons
+    local REPLY=(0 0 0 0)	# array of results from terminal
+
+    # Send control sequence to query the sixel graphics geometry.
+    if read -a REPLY -s -t ${timeout} -d "S" -p $'\e[?2;1;0S' >&2; then
+	if [[ ${#REPLY[@]} -ge 4 && ${REPLY[2]} -gt 0 && ${REPLY[3]} -gt 0 ]]
+	then
+	    w=${REPLY[2]}
+    	    h=${REPLY[3]}
+	else
+    	    # Nope. Fall back to dtterm WindowOps to approximate sixel geometry.
+	    waitforterminal
+	    if read -a REPLY -s -t ${timeout} -d "t" -p $'\e[14t' >&2; then
+		if [[ $? == 0  &&  ${#REPLY[@]} -ge 3  &&  ${REPLY[2]} -gt 0 ]]
+		then
+		    w=${REPLY[2]}
+		    h=${REPLY[1]}
+		fi
+	    fi
+	fi
+    fi
+
+    # Discard responses slow to arrive responses from the terminal.
+    flushstdin
+
+    # Return the results (or the default if querying didn't work)
+    [[ w -gt 0 ]]  ||  w=${default_width}
+    [[ h -gt 0 ]]  ||  h=${default_height}
+    echo $w $h
+    debug "window size is $w x $h"
+    return
+}
+
+windowchange() {
+    # SIGWINCH handler: Called when terminal window is resized.
+    # Send control sequence to query the sixel graphics geometry to
+    # find out how large of a sixel image can be shown.
+
+    # XXX This actually doesn't do anything yet! Eventually, should
+    # cancel existing decoding/sixelizing processes (if any) and
+    # launch new ones after finding the proper screen size.
+
+    # Sets global variables:
+    # LINES, COLUMNS, width, height, and font_height.
+
+    local IFS=""; unset IFS	# In case IFS was set before SIGWINCH
+    read width height <  <(getwindowsize)
+
+    # Calculate height of terminal font in pixels
+    # TODO: maybe use echo $'\e[16t' to get width, height of font.
+    LINES=$(tput lines); COLUMNS=$(tput cols)
+    [[ $LINES -gt 0 ]] || LINES=24		# Default 24 rows of text.
+    font_height=height/LINES
+    [[ font_height -gt 0 ]] || font_height=20 	# Default 20px high font.
+    debug "font height is $font_height"
+
+    # Trim returned height so we have room for two lines of text
+    height=$(( font_height * (LINES-2) ))
+    debug "usable screen height is $height"
+
+    # Clear any glitches off the screen left behind after a resize.
+    need_clear=yup
+}
+trap windowchange SIGWINCH
+
+flushstdin() {
+    # flush stdin in case a key was hit twice by accident
+    local REPLY
+    while read -s -n1 -t .001; do :; done
+}
+
+waitforterminal() {
+    # Send an escape sequence and wait for a response from the terminal.
+    # This routine will let us know when an image transfer has finished
+    # and it's okay to send escape sequences that request results.
+    # WARNING. This *should* work with any terminal, but if it fails
+    # it'll end up waiting for approximately forever (i.e., 60 seconds).
+    flushstdin
+    read -s -t ${1:-60} -d "c" -p $'\e[c'
+    flushstdin
+}
+
 
 ### MAIN
+
+set -o nounset			# Just for laughs, let's die on typos. ;-)
 
 file=$(realpath "$1")
 base=$(basename "$file")
@@ -503,6 +625,7 @@ while [ -z "$QUITFLAG" ]; do
 
 	echo
 	if [ -s "$t" ]; then
+	    if [[ "$need_clear" ]]; then clear; need_clear=""; fi
 	    cat "$t"
 	    if [[ "$starttime" -gt 0 ]]; then
 		tput cup 1000 0

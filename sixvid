@@ -60,8 +60,6 @@ declare -g   bflag=""		#  --benchmark
 declare -g   shmflag=""		#  --shm 
 
 # Benchmarking global vars
-declare -i starttime=0		# Start time in seconds
-
 declare -g   startnano=""	# Start time in nanoseconds
 declare -g   endnano=""		# End time in nanoseconds
 declare -gi  totalframes=0	# Frames rendered
@@ -402,7 +400,7 @@ waitforkey() {
 		 ;;
 	    b)  # Toggle benchmarking (infinite FPS)
 		bflag=$([[ $bflag ]] && echo || echo yup)
-		starttime=0
+		startnano=""
 	       	;;
 	    q|Q|$'\e')
 		quit_flag=true;
@@ -471,7 +469,6 @@ jobrunning() {
 
 resettimer() {
     # Start the stopwatch for benchmarking
-    starttime=$SECONDS
     startnano=$(date +%s.%N)
     totalframes=0;
 }
@@ -626,7 +623,7 @@ while [ -z "$quit_flag" ]; do
 	jobs %1 >&- 2>&-  &&  echo -n " (decoding)"
 	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing)"
 
-	if [[ $starttime -eq 0 ]] && ! jobs %2 >&- 2>&- ; then
+	if [[ -z $startnano ]] && ! jobs %2 >&- 2>&- ; then
 	    # For benchmarking, start counting when background jobs end.
 	    echo -n " (benchmarking start)"
 	    resettimer
@@ -636,7 +633,7 @@ while [ -z "$quit_flag" ]; do
 	if [ -s "$t" ]; then
 	    if [[ "$need_clear" ]]; then clear; need_clear=""; fi
 	    cat "$t"
-	    if [[ "$starttime" -gt 0 ]]; then
+	    if [[ "$startnano" ]]; then
 		tput cup 1000 0
 		echo -n "$fps FPS (goal $goalfps, delay $delay ms, overhead $weightestimate ms)  "
 	    fi

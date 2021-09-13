@@ -154,13 +154,14 @@ sixvid --benchmark nyantocat.gif
 
 * Eventually should use DECSDM (sixel display mode) so that large
   images don't cause scrolling, but we're in the awkward, teenage
-  years of understanding DECSDM. (Viz.: dankamongmen's [DECSDM is a
+  years of understanding DECSDM. (Viz.: dankamongmen's ["DECSDM is a
   poorly-understood
   hellscape"](https://github.com/dankamongmen/notcurses/issues/1782)).
 
 * Sixvid uses the number of sixel bytes being sent to guess if it
   should downscale/grayscale the image to maintain the framerate.
-  However, some terminals may be slower at rendering a large image
-  than one with more colors, given the same filesize.
+  However, network bandwidth isn't the only bottleneck. Some terminals
+  may be slower at rendering a large image than one with more colors,
+  given the same filesize.
 
 

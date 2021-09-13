@@ -12,7 +12,7 @@ finished. It does have some nice features, though.
 
 ## Install
 
-Download [sixvid](https://github.com/hackerb9/sixvid/raw/sixvid) to a
+Download [sixvid](https://github.com/hackerb9/sixvid/raw/main/sixvid) to a
 directory in your PATH (e.g., ~/bin or /usr/local/bin) and make it
 executable (chmod +x sixvid). 
 

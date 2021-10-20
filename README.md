@@ -70,13 +70,15 @@ Other keys
 * Exiting program when benchmarking shows average FPS, starting from
   time when background processes (decoding, sixelizing) finished.
 
+* Not limited to GIF. Can handle any video format that `ffmpeg` can read.
+
 ## Requirements
 
 * A sixel capable terminal (e.g., `xterm -ti vt340`)
 
 * ImageMagick
 
-* ffmpeg (only needed for video formats ImageMagick does not innately know)
+* ffmpeg
 
 ## Benchmarking with sixvid's FPS
 
@@ -94,7 +96,7 @@ With that caveat, the sixvid FPS numbers are good enough to at least
 give you a sense of relative speed of terminal emulators.
 
 As of September 2021, here are the speeds on hackerb9's box using the
-[nyantocat.gif](nyantocat.gif) image.
+[media/nyantocat.gif](nyantocat.gif) image.
 
 ```bash
 sixvid --benchmark nyantocat.gif
@@ -126,9 +128,15 @@ sixvid --benchmark nyantocat.gif
 
 ## Limitations
 
-* Takes an exorbitant amount of /tmp space as it unpacks every frame
-  as sixels. Gzipping the sixels may help, at the cost of CPU, but
-  there is no obvious solution to this problem.
+* Takes an exorbitant amount of `/tmp` space as it unpacks every frame
+  first as PPM and then as sixels. For example, [this 4 MB clip from
+  Blender's _Spring_](media/spring.webm) expands to over 4 **G**B in
+  /tmp during conversion. (It drops back to "only" 1 GB once it
+  finishes converting the PPM files to sixel.)
+
+  Using PNG and gzipping the sixels may help, at the cost of CPU, but
+  there is no obvious solution to this problem. Ideally, `ffmpeg` would
+  have direct sixel output. 
 
 * Does not attempt to play audio. This is unlikely to happen until
   machines are so fast it's easy for a shell script to write 44,100

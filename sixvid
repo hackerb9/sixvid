@@ -53,11 +53,12 @@ declare -g   reducecolors=""	# Optionally reduce colors to save bandwidth.
 declare -g   quit_flag=""	# Set by waitforkey() to exit main loop.
 
 # Command line flags
-declare -g   eflag=""		#  --exact 
+declare -g   eflag=""		#  --exact
 declare -g   sflag=""		#  --shrink 
 declare -g   Sflag=""		#  --serial 
 declare -g   bflag=""		#  --benchmark 
 declare -g   shmflag=""		#  --shm 
+declare -g   xtermlimit="[>1000x>1000]" # This gets cleared with -E flag
 
 # Benchmarking global vars
 declare -g   startnano=""	# Start time in nanoseconds
@@ -102,7 +103,7 @@ EOF
 
 
 
-TEMP=$(getopt -o 'besS' \
+TEMP=$(getopt -o 'beEsS' \
 	      --long 'no-shrink,exact,shrink,ssh,serial' \
 	      --long 'benchmark,shm' \
 	      -- "$@") || usage
@@ -112,8 +113,14 @@ unset TEMP
 while true; do
     case "$1" in
     "-e"|"--exact"|"--no-shrink")
-	eflag=yup # Show exactly, no color/geometry reduction
-	shift	  # (Ignores ssh or serial connection).
+	eflag=yup # Do not reduce color/geometry for bandwidth reasons.
+	shift	  # (Will not detect ssh or serial connection).
+	continue
+	;;	  
+    "-E")
+	eflag=yup # Do not even limit geometry to 1000px wide for XTerm
+	xtermlimit=""
+	shift
 	continue
 	;;	  
     "-s"|"--ssh"|"--shrink")
@@ -451,7 +458,7 @@ converttosixel() {
 		if [ ! -s "$t.sixel" ]; then
 		    mv "$t" "$t.inprocess";
 		    ( convert $shrink $reducecolors  \
-			      "pnm:$t.inprocess"'[>1000x>1000]' \
+			      "pnm:$t.inprocess$xtermlimit" \
 			      "$t.sixel"  2>/dev/null \
 			  && rm "$t.inprocess" 2>/dev/null \
 			      || mv "$t.inprocess" "$t" 2>/dev/null

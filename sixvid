@@ -178,7 +178,7 @@ delay=delay-weightestimate
 # Save goalfps so we can use [, ], and backspace for slow, faster, and reset.
 originalgoal=$goalfps		
 
-
+declare -a fpsarray		# List of FPS for each second during run
 
 cleanup() {
     while kill $(jobs -p) 2>&-; do sleep 0.1; done   # Kill background jobs.
@@ -194,20 +194,41 @@ cleanup() {
     tput cup 1000 0
     echo -n $'\r'; tput el		# Clear status line
 
-    if [[ ( $bflag || $DEBUG ) && $startnano  ]]; then
+    if [[ $bflag || $DEBUG ]]; then
 	tput cuu 1
 	echo -n $'\r'; tput el		# Clear second to last line
-	endnano=$(date +%s.%N)
-	durnano=$(echo $endnano-$startnano | bc -q)	
-	FPS=$(echo "scale=2; $totalframes/$durnano" | bc -q)
-	if [[ $DEBUG ]]; then
-	    tput cuu 1			# Up to third to last line
-	    echo -n "$totalframes frames / "
-	    echo -n $(echo "scale=2; $durnano/1" | bc -q)
-	    echo "seconds == "
-	fi
-	echo "$FPS frames per second (after sixelizing finished)"
-    fi
+
+	if [[ ! $startnano  ]]; then
+	    echo "(Benchmarking only available after sixelizing has finished.)"
+	else
+	    # Output benchmarking results
+	    endnano=$(date +%s.%N)
+	    durnano=$(echo $endnano-$startnano | bc -q)	
+	    local mean=$(echo "scale=2; $totalframes/$durnano" | bc -q)
+	    if [[ $DEBUG ]]; then
+		tput cuu 1			# Up to third to last line
+		echo -n "$totalframes frames / "
+		echo -n $(echo "scale=2; $durnano/1" | bc -q)
+		echo "seconds == $mean fps"
+	    fi
+	    echo -n "Frames per second: $mean (average), "
+
+	    local -i i=2			# Ignore first two FPS counts 
+	    local -i min=999999999
+	    while (( i < ${#fpsarray[@]} )); do
+		if (( ${fpsarray[i]} < min )); then
+		    min=${fpsarray[i]}
+		fi
+		i=i+1
+	    done
+	    if [[ $min != 999999999 ]]; then
+		echo "$min (minimum)"
+	    else
+		echo "insufficient data to calculate minimum"
+	    fi
+
+	fi # if $startnano
+    fi # if $bflag
 }
 trap cleanup EXIT
 
@@ -332,6 +353,8 @@ isserialline() {
 }
 
 adjustdelay() {
+    # This is called after every frame. 
+
     # Once a second, adjust the delay per frame by trying to estimate
     # how much weight in milliseconds it costs to send one sixel frame
     # to the screen. (Typical weightestimate on an old UNIX PC, 17ms.
@@ -343,6 +366,7 @@ adjustdelay() {
 	OLDSECONDS=$SECONDS
 	fps=n/s
 	n=0
+	fpsarray+=($fps)
 
 	if [[ $bflag ]]; then
 	    delay=0		# benchmarking, run at max fps
@@ -482,6 +506,7 @@ resettimer() {
     # Start the stopwatch for benchmarking
     startnano=$(date +%s.%N)
     totalframes=0;
+    fpsarray=()
 }
 
 getwindowsize() {
@@ -629,14 +654,18 @@ while [ -z "$quit_flag" ]; do
     while [[ -s $t ]]; do
 	t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
 	tput home
-	tput el
 	echo -n "$base $i"
 	jobs %1 >&- 2>&-  &&  echo -n " (decoding)"
 	jobs %2 >&- 2>&-  &&  echo -n " (sixelizing)"
+	tput el
 
-	if [[ -z $startnano ]] && ! jobs %2 >&- 2>&- ; then
+	if [[ $bflag && $startnano ]]; then
+	   echo -en "\t(benchmarking $((${#fpsarray[@]}-2)))"
+	fi
+
+	if [[ $bflag && ! $startnano ]] && ! jobs %2 >&- 2>&- ; then
 	    # For benchmarking, start counting when background jobs end.
-	    echo -n " (benchmarking start)"
+	    echo -n " (benchmarking started)"
 	    resettimer
 	fi
 

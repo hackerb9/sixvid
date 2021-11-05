@@ -6,8 +6,8 @@
 # Niceties
 # * Decodes video and converts to sixel in background using multiple cores.
 # * Dynamically adjusts delay loop to approximate correct FPS.
-# * Attempts to shrinks geometry/color depth when on slow ssh/serial connection.
-# * Reasonable benchmark behavior. 
+# * Attempts to shrinks geometry/colordepth when on slow ssh/serial connection.
+# * Reasonable benchmark behavior: waits for each frame to be rendered.
 
 # Bugs
 
@@ -19,6 +19,12 @@
 #   then replace it with higher depth once all the frames are done.
 
 # * Should use the size of the screen for scaling the image.
+
+# * Playing a video on a slow terminal or network connection may miss
+#   keypresses. (Ctrl+C will still work to quit, of course). This is
+#   because it uses a response from the terminal (waitforterminal) to
+#   synchronize before showing the next frame and because the keyboard
+#   input routine (waitforkey) only runs in the pause between frames.
 
 # hackerb9
 
@@ -58,6 +64,7 @@ declare -g   sflag=""		#  --shrink
 declare -g   Sflag=""		#  --serial 
 declare -g   bflag=""		#  --benchmark 
 declare -g   shmflag=""		#  --shm 
+declare -g   stupidflag=""	#  --stupid-fast 
 declare -g   xtermlimit="[>1000x>1000]" # This gets cleared with -E flag
 
 # Benchmarking global vars
@@ -83,6 +90,7 @@ Usage: sixvid [ -e | -s | -S ] [ -b ] <filename>
 -s	--shrink, --ssh 	Force shrinking color/geometry as if over ssh.
 -S	--serial 		Force shrinking color/geometry as if serial.
 -b	--benchmark 		Show frames as fast as possible.
+	--stupid-fast 		Show frames faster than possible.
 	--shm	 		Write temp files to /dev/shm/
 
 Interactive Keys
@@ -105,7 +113,7 @@ EOF
 
 TEMP=$(getopt -o 'beEsS' \
 	      --long 'no-shrink,exact,shrink,ssh,serial' \
-	      --long 'benchmark,shm' \
+	      --long 'benchmark,shm,stupid-fast' \
 	      -- "$@") || usage
 eval set -- "$TEMP"
 unset TEMP
@@ -147,6 +155,13 @@ while true; do
 		shmflag=""
 	    fi
 	fi
+	shift
+	continue
+	;;	  
+    "--stupid-fast")
+	echo "Whoa, Nelly!! Sending frames stupid fast!" >&2
+	echo "Will not wait for frames to be rendered before sending more." >&2
+	stupidflag="so fast it's stupid fast!"
 	shift
 	continue
 	;;	  
@@ -222,14 +237,22 @@ cleanup() {
 		i=i+1
 	    done
 	    if [[ $min != 999999999 ]]; then
-		echo "$min (minimum)"
+		echo "$min (minimum, approx)"
 	    else
 		echo "insufficient data to calculate minimum"
 	    fi
 
 	fi # if $startnano
+
+	if [[ $stupidflag ]]; then 
+	    echo "Warning: FPS calculations are wrong due to --stupid-fast" 
+	fi
     fi # if $bflag
+
+    # If terminal was sending an escape sequence, ignore it.
+    flushstdin
 }
+
 trap cleanup EXIT
 
 debug() {
@@ -585,7 +608,7 @@ windowchange() {
 trap windowchange SIGWINCH
 
 flushstdin() {
-    # flush stdin in case a key was hit twice by accident
+    # flush stdin in for slow responses from the terminal
     local REPLY
     while read -s -n1 -t .001; do :; done
 }
@@ -596,9 +619,7 @@ waitforterminal() {
     # and it's okay to send escape sequences that request results.
     # WARNING. This *should* work with any terminal, but if it fails
     # it'll end up waiting for approximately forever (i.e., 60 seconds).
-    flushstdin
     read -s -t ${1:-60} -d "c" -p $'\e[c'
-    flushstdin
 }
 
 
@@ -652,6 +673,9 @@ while [ -z "$quit_flag" ]; do
     declare -i i=1
     t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
     while [[ -s $t ]]; do
+	if [[ ! $stupidflag ]]; then
+	    waitforterminal		# Don't saturate the network link
+	fi
 	t=$( printf "%s/%s-%08d.pnm.sixel" "$temp" "$base" $i)
 	tput home
 	echo -n "$base $i"
